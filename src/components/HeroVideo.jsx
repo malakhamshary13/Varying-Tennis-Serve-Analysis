@@ -104,7 +104,7 @@ export default function HeroVideo() {
           end: "+=2000",
           pin: true,
           scrub: true,
-          pinSpacing: true, 
+          pinSpacing: true,
           anticipatePin: 1,
           onUpdate: (self) => {
             requestSeek(self.progress * duration);
@@ -113,12 +113,19 @@ export default function HeroVideo() {
             if (video) requestSeek(self.progress * duration);
           }
         });
+
+        // Signal to other components that the pin spacer is ready
+        window.dispatchEvent(new CustomEvent('hero-pin-ready'));
       };
 
       if (video.readyState >= 1) {
         setupScrub();
+        setTimeout(() => ScrollTrigger.refresh(), 100);
       } else {
-        const onLoaded = () => setupScrub();
+        const onLoaded = () => {
+          setupScrub();
+          setTimeout(() => ScrollTrigger.refresh(), 100);
+        };
         video.addEventListener("loadedmetadata", onLoaded);
         // Clean up the event listener when context reverts
         return () => video.removeEventListener("loadedmetadata", onLoaded);

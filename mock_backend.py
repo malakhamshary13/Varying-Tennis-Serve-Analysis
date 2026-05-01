@@ -1,5 +1,5 @@
 """
-TennisAI Mock Backend
+ServeSense Mock Backend
 =====================
 Simulates the /analyze endpoint for frontend development & testing.
 
@@ -12,7 +12,7 @@ import random
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="TennisAI Mock Backend", version="1.0.0")
+app = FastAPI(title="ServeSense Mock Backend", version="1.0.0")
 
 # ── CORS ─────────────────────────────────────────────────────────────────────
 # Regex covers any localhost port so Vite port bumps (5173, 5174…) never break requests.
@@ -167,7 +167,7 @@ def compute_projection(user: dict, current_court: str, target_court: str) -> dic
 
 @app.get("/")
 async def root():
-    return {"status": "TennisAI Mock Backend is running 🎾"}
+    return {"status": "ServeSense Mock Backend is running 🎾"}
 
 
 @app.get("/health")

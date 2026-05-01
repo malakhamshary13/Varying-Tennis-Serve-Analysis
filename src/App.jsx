@@ -1,12 +1,17 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import './App.css';
 import ResultsDashboard from './components/ResultsDashboard';
 import HeroVideo from "./components/HeroVideo";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 
+
+
+gsap.registerPlugin(ScrollTrigger);
 
 const API_BASE = 'http://localhost:8000';
 
@@ -52,7 +57,7 @@ const BackgroundAtmosphere = ({ court }) => {
       // Disable spotlight updates in the heavy video section to save resources
       if (window.scrollY < 2000) return;
       if (rafId.current) return;
-      
+
       rafId.current = requestAnimationFrame(() => {
         spotlight.style.background = `radial-gradient(800px circle at ${e.clientX}px ${e.clientY}px, rgba(${color}, 0.07), transparent 80%)`;
         rafId.current = null;
@@ -115,6 +120,99 @@ export default function App() {
   }, [loading]);
 
 
+  useEffect(() => {
+    // Kill any stale tweens and reset all element positions immediately
+    // This prevents old GSAP inline styles from previous runs from persisting
+    gsap.killTweensOf([".tennis-ball-wrapper", ".tennis-ball-transition", ".hero-static", ".reveal-content-wrapper"]);
+    gsap.set(".tennis-ball-wrapper", { clearProps: "all" }); // wipes inline style completely
+    gsap.set(".tennis-ball-transition", { clearProps: "all" });
+
+    if (results) {
+      gsap.set(".reveal-content-wrapper", { opacity: 1, y: 0 });
+      gsap.set(".hero-static", { opacity: 1, x: 0 });
+      return;
+    }
+
+    // Now enforce the correct initial hidden state
+    gsap.set(".tennis-ball-wrapper", { display: "none" });
+    gsap.set(".tennis-ball-transition", { scale: 0, opacity: 0, x: 0, rotate: 0 });
+    gsap.set(".hero-static", { opacity: 1, x: 0 }); // Section visible to show the ball
+    gsap.set(".hero-static-content", { opacity: 0, x: 0 }); // Only text starts hidden
+    gsap.set(".reveal-content-wrapper", { opacity: 0, y: 60 });
+
+    let tl = null;
+
+    const setupAnimation = () => {
+      ScrollTrigger.refresh();
+
+      tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: ".hero-static",
+          start: "top top",
+          end: "+=1200",
+          pin: true,
+          pinSpacing: true,
+          scrub: 1.2,
+          anticipatePin: 1,
+          onEnter: () => gsap.set(".tennis-ball-wrapper", { display: "flex" }),
+          onLeaveBack: () => {
+            gsap.set(".tennis-ball-wrapper", { display: "none" });
+            gsap.set(".tennis-ball-transition", { scale: 0, opacity: 0, x: 0, rotate: 0 });
+            gsap.set(".hero-static-content", { opacity: 0, x: 0 });
+            gsap.set(".reveal-content-wrapper", { opacity: 0, y: 60 });
+          },
+
+        }
+      });
+
+      // Step 1: Ball pops in at center (wrapper centers it via CSS flexbox)
+      tl.fromTo(".tennis-ball-transition",
+        { scale: 0, opacity: 0, rotate: 0, x: 0 },
+        { scale: 1, opacity: 1, rotate: 180, duration: 1.2, ease: "back.out(1.7)" }
+      )
+      // Step 2: Ball holds, then slides left (Ending at -20vw as requested)
+      .to(".tennis-ball-transition", {
+        x: "-18vw",
+        rotate: -180,
+        duration: 4,
+        ease: "power2.in"
+      }, "+=3")
+      // Step 3: Hero-static text fades in (Targeting content only, so it doesn't move the ball)
+      .fromTo(".hero-static-content",
+        { opacity: 0, x: -30 },
+        { opacity: 1, x: 200, duration: 1.8, ease: "power2.out" },
+        "<3" 
+      )
+      // Step 4: Upload form reveals
+      .fromTo(".reveal-content-wrapper",
+        { opacity: 0, y: 60 },
+        { opacity: 1, y: 0, duration: 1, ease: "power2.out" },
+        "-=0.4"
+      );
+    };
+
+    // Wait for HeroVideo pin to be ready before calculating scroll positions
+    const onPinReady = () => setupAnimation();
+    window.addEventListener('hero-pin-ready', onPinReady, { once: true });
+
+    // Fallback for hot reloads where the event already fired
+    const fallbackTimeout = setTimeout(() => {
+      if (!tl) setupAnimation();
+    }, 1500);
+
+
+    return () => {
+      window.removeEventListener('hero-pin-ready', onPinReady);
+      clearTimeout(fallbackTimeout);
+      if (tl) {
+        tl.scrollTrigger?.kill();
+        tl.kill();
+      }
+    };
+  }, [results]);
+
+
+
   const handleFileSelect = useCallback((file) => {
     if (!file) return;
     if (!file.type.startsWith('video/')) {
@@ -175,7 +273,7 @@ export default function App() {
     const y = e.clientY - rect.top;
     card.style.setProperty('--mouse-x', `${x}px`);
     card.style.setProperty('--mouse-y', `${y}px`);
-    
+
     const selected = COURTS.find(c => c.id === court);
     if (selected) {
       card.style.setProperty('--card-glow-color', selected.colorRgb);
@@ -192,250 +290,251 @@ export default function App() {
 
 
 
-      {/* Nav */}
-      <nav className={`nav ${isScrolled ? 'scrolled' : ''}`}>
-        <motion.a 
-          className="nav-logo" 
-          href="/" 
-          aria-label="TennisAI Home"
-          whileHover={{ scale: 1.05, rotate: -2 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <div className="nav-logo-icon" aria-hidden="true">🎾</div>
-          <span className="nav-logo-text">TennisAI</span>
-        </motion.a>
-      </nav>
+        {/* Nav */}
+        <nav className={`nav ${isScrolled ? 'scrolled' : ''}`}>
+          <motion.a
+            className="nav-logo"
+            href="/"
+            aria-label="ServeSense Home"
+            whileHover={{ scale: 1.05, rotate: -2 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <div className="nav-logo-icon" aria-hidden="true">🎾</div>
+            <span className="nav-logo-text">ServeSense</span>
+          </motion.a>
+        </nav>
 
-      {/* Hero Sections — Simplified for performance */}
-      <div style={{ display: results ? 'none' : 'block' }}>
-        <HeroVideo />
+        {/* Hero Sections — Simplified for performance */}
+        <div className="hero-sections-wrapper" style={{ display: results ? 'none' : 'block' }}>
+          <HeroVideo />
 
-        <section className="hero-static">
+          <section className="hero-static">
+            {/* Wrapper centers ball via flexbox; GSAP only needs to animate x/scale on the ball */}
+            {!results && (
+              <div className="tennis-ball-wrapper" aria-hidden="true">
+                <div className="tennis-ball-transition" />
+              </div>
+            )}
             <div className="main">
-              <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-100px" }}
-                transition={{ duration: 0.8 }}
-              >
+              <div className="hero-static-content">
                 <h2 className="hero-title">
                   Ready to<br />
                   <span>Analyze?</span>
                 </h2>
                 <p className="hero-sub">
-                  Our Computer vision model is Designed to assist players and coaches in improving their tennis game by providing detailed feedback on their technique and performance. Choose your surface and upload your match footage below 
+                  Our Computer vision model is Designed to assist players and coaches in improving their tennis game by providing detailed feedback on their technique and performance. Choose your surface and upload your match footage below
                   to see how you stack up against the legends.
                 </p>
-              </motion.div>
+              </div>
             </div>
           </section>
-      </div>
+        </div>
 
 
+        {/* Main */}
+        <main className="main" id="main-content">
+          <div className="reveal-content-wrapper">
 
 
-
-      {/* Main */}
-      <main className="main" id="main-content">
-
-
-        {/* Upload form */}
-        <AnimatePresence mode="wait">
-          {!results && (
-            <motion.section 
-              className="upload-section" 
-              aria-label="Upload and analyze"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.5 }}
-            >
-              <div className="card" onMouseMove={handleMouseMove}>
-                {/* Court selector */}
-
-                <p className="section-label">Select Court Surface</p>
-                <div
-                  className="court-selector"
-                  role="radiogroup"
-                  aria-label="Court surface type"
+            {/* Upload form */}
+            <AnimatePresence mode="wait">
+              {!results && (
+                <motion.section
+                  className="upload-section"
+                  aria-label="Upload and analyze"
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.5 }}
                 >
-                  {COURTS.map((c, i) => (
-                    <motion.button
-                      key={c.id}
-                      id={`court-${c.id}`}
-                      className={`court-btn${court === c.id ? ' active' : ''}`}
-                      onClick={() => setCourt(c.id)}
-                      role="radio"
-                      aria-checked={court === c.id}
-                      style={{
-                        '--court-color': c.color,
-                        '--court-color-rgb': c.colorRgb,
-                      }}
-                      initial={{ opacity: 0, y: 10 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.1 }}
-                      whileHover={{ 
-                        y: -5, 
-                        scale: 1.02,
-                        boxShadow: `0 10px 25px rgba(${c.colorRgb}, 0.2)`
-                      }}
-                      whileTap={{ scale: 0.97 }}
+                  <div className="card" onMouseMove={handleMouseMove}>
+                    {/* Court selector */}
+
+                    <p className="section-label">Select Court Surface</p>
+                    <div
+                      className="court-selector"
+                      role="radiogroup"
+                      aria-label="Court surface type"
                     >
-                      <motion.div 
-                        className="court-icon-wrap" 
-                        aria-hidden="true"
-                        animate={court === c.id ? { scale: 1.1 } : { scale: 1 }}
-                      >
-                        {c.emoji}
-                      </motion.div>
-                      <div className="court-name">{c.label}</div>
-                      <div className="court-sub">{c.sub}</div>
-                    </motion.button>
-                  ))}
-                </div>
-
-                {/* Drop zone */}
-                <p className="section-label">Upload Video</p>
-                <motion.div
-                  className={`drop-zone${dragOver ? ' drag-over' : ''}`}
-                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={handleDrop}
-                  onClick={() => fileInputRef.current?.click()}
-                  role="button"
-                  tabIndex={0}
-                  aria-label="Click or drag to upload video"
-                  onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
-                  whileHover={{ borderColor: 'var(--accent)' }}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="video/*"
-                    id="video-upload"
-                    onChange={(e) => handleFileSelect(e.target.files[0])}
-                    aria-label="Select video file"
-                    style={{ display: 'none' }}
-                  />
-                  <motion.div 
-                    className="drop-icon" 
-                    aria-hidden="true"
-                    animate={dragOver ? { scale: 1.2, rotate: 10 } : { scale: 1, rotate: 0 }}
-                  >🎬</motion.div>
-                  <div className="drop-title">
-                    {videoFile ? videoFile.name : 'Drop your video here'}
-                  </div>
-                  <div className="drop-hint">
-                    Supports MP4, MOV, AVI · Max recommended 500MB
-                  </div>
-                </motion.div>
-
-                <AnimatePresence>
-                  {videoFile && (
-                    <motion.div 
-                      className="file-selected" 
-                      role="status"
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                    >
-                      <motion.span 
-                        aria-hidden="true"
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 15 }}
-                      >✅</motion.span>
-                      <span className="file-selected-name">{videoFile.name}</span>
-                      <span className="file-selected-size">
-                        {formatBytes(videoFile.size)}
-                      </span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {error && !loading && (
-                  <motion.div 
-                    className="error-banner" 
-                    role="alert"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                  >
-                    <span aria-hidden="true">⚠️</span>
-                    {error}
-                  </motion.div>
-                )}
-
-                {loading ? (
-                  <div className="loading-container" aria-live="polite" aria-busy="true">
-                    <motion.div 
-                      className="tennis-ball-spinner" 
-                      aria-hidden="true" 
-                      animate={{ 
-                        scale: [1, 1.1, 1],
-                        rotate: [0, 180, 360]
-                      }}
-                      transition={{ 
-                        duration: 2,
-                        repeat: Infinity,
-                        ease: "easeInOut"
-                      }}
-                    />
-                    <AnimatePresence mode="wait">
-                      <motion.div 
-                        key={loadingStep}
-                        className="loading-text"
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -5 }}
-                      >
-                        {LOADING_STEPS[loadingStep]}
-                      </motion.div>
-                    </AnimatePresence>
-                    <div className="loading-steps" aria-hidden="true">
-                      {[0, 1, 2].map((i) => (
-                        <motion.div 
-                          key={i}
-                          className="loading-dot"
-                          animate={{ scale: [0.6, 1, 0.6], opacity: [0.4, 1, 0.4] }}
-                          transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
-                        />
+                      {COURTS.map((c, i) => (
+                        <motion.button
+                          key={c.id}
+                          id={`court-${c.id}`}
+                          className={`court-btn${court === c.id ? ' active' : ''}`}
+                          onClick={() => setCourt(c.id)}
+                          role="radio"
+                          aria-checked={court === c.id}
+                          style={{
+                            '--court-color': c.color,
+                            '--court-color-rgb': c.colorRgb,
+                          }}
+                          initial={{ opacity: 0, y: 10 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.1 }}
+                          whileHover={{
+                            y: -5,
+                            scale: 1.02,
+                            boxShadow: `0 10px 25px rgba(${c.colorRgb}, 0.2)`
+                          }}
+                          whileTap={{ scale: 0.97 }}
+                        >
+                          <motion.div
+                            className="court-icon-wrap"
+                            aria-hidden="true"
+                            animate={court === c.id ? { scale: 1.1 } : { scale: 1 }}
+                          >
+                            {c.emoji}
+                          </motion.div>
+                          <div className="court-name">{c.label}</div>
+                          <div className="court-sub">{c.sub}</div>
+                        </motion.button>
                       ))}
                     </div>
+
+                    {/* Drop zone */}
+                    <p className="section-label">Upload Video</p>
+                    <motion.div
+                      className={`drop-zone${dragOver ? ' drag-over' : ''}`}
+                      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                      onDragLeave={() => setDragOver(false)}
+                      onDrop={handleDrop}
+                      onClick={() => fileInputRef.current?.click()}
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Click or drag to upload video"
+                      onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
+                      whileHover={{ borderColor: 'var(--accent)' }}
+                    >
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="video/*"
+                        id="video-upload"
+                        onChange={(e) => handleFileSelect(e.target.files[0])}
+                        aria-label="Select video file"
+                        style={{ display: 'none' }}
+                      />
+                      <motion.div
+                        className="drop-icon"
+                        aria-hidden="true"
+                        animate={dragOver ? { scale: 1.2, rotate: 10 } : { scale: 1, rotate: 0 }}
+                      >🎬</motion.div>
+                      <div className="drop-title">
+                        {videoFile ? videoFile.name : 'Drop your video here'}
+                      </div>
+                      <div className="drop-hint">
+                        Supports MP4, MOV, AVI · Max recommended 500MB
+                      </div>
+                    </motion.div>
+
+                    <AnimatePresence>
+                      {videoFile && (
+                        <motion.div
+                          className="file-selected"
+                          role="status"
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                        >
+                          <motion.span
+                            aria-hidden="true"
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                          >✅</motion.span>
+                          <span className="file-selected-name">{videoFile.name}</span>
+                          <span className="file-selected-size">
+                            {formatBytes(videoFile.size)}
+                          </span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {error && !loading && (
+                      <motion.div
+                        className="error-banner"
+                        role="alert"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                      >
+                        <span aria-hidden="true">⚠️</span>
+                        {error}
+                      </motion.div>
+                    )}
+
+                    {loading ? (
+                      <div className="loading-container" aria-live="polite" aria-busy="true">
+                        <motion.div
+                          className="tennis-ball-spinner"
+                          aria-hidden="true"
+                          animate={{
+                            scale: [1, 1.1, 1],
+                            rotate: [0, 180, 360]
+                          }}
+                          transition={{
+                            duration: 2,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                          }}
+                        />
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={loadingStep}
+                            className="loading-text"
+                            initial={{ opacity: 0, y: 5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                          >
+                            {LOADING_STEPS[loadingStep]}
+                          </motion.div>
+                        </AnimatePresence>
+                        <div className="loading-steps" aria-hidden="true">
+                          {[0, 1, 2].map((i) => (
+                            <motion.div
+                              key={i}
+                              className="loading-dot"
+                              animate={{ scale: [0.6, 1, 0.6], opacity: [0.4, 1, 0.4] }}
+                              transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <motion.button
+                        id="analyze-btn"
+                        className="analyze-btn"
+                        onClick={handleAnalyze}
+                        disabled={!videoFile}
+                        aria-disabled={!videoFile}
+                        whileHover={!videoFile ? {} : { scale: 1.03, filter: 'brightness(1.1)' }}
+                        whileTap={!videoFile ? {} : { scale: 0.96 }}
+                      >
+                        <span aria-hidden="true">🔬</span>
+                        Analyze Movement
+                      </motion.button>
+                    )}
                   </div>
-                ) : (
-                  <motion.button
-                    id="analyze-btn"
-                    className="analyze-btn"
-                    onClick={handleAnalyze}
-                    disabled={!videoFile}
-                    aria-disabled={!videoFile}
-                    whileHover={!videoFile ? {} : { scale: 1.03, filter: 'brightness(1.1)' }}
-                    whileTap={!videoFile ? {} : { scale: 0.96 }}
-                  >
-                    <span aria-hidden="true">🔬</span>
-                    Analyze Movement
-                  </motion.button>
-                )}
-              </div>
-            </motion.section>
-          )}
-        </AnimatePresence>
+                </motion.section>
+              )}
+            </AnimatePresence>
 
-        {/* Results */}
-        <AnimatePresence>
-          {results && !loading && (
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, ease: "easeOut" }}
-            >
-              <ResultsDashboard data={results} court={court} onReset={reset} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+            {/* Results */}
+            <AnimatePresence>
+              {results && !loading && (
+                <motion.div
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  style={{ marginBottom: '1.25rem' }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                >
+                  <ResultsDashboard data={results} court={court} onReset={reset} />
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-      </main>
-    </ErrorBoundary>
+          </div>
+        </main>
+      </ErrorBoundary>
     </div>
   );
 }
