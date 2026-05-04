@@ -19,6 +19,7 @@ from flask_cors import CORS
 
 from extractor import extract_features
 from surface_engine import analyze_serve, PRO_REFERENCE, COURTS, OUTLIER_LOG
+from validator import validate_tennis_video
 
 app = Flask(__name__)
 CORS(app)  # allow frontend (any origin) to call these endpoints
@@ -62,7 +63,17 @@ def analyze():
         video_file.save(tmp.name)
         tmp_path = tmp.name
 
-    # ── 3. Extract features with MediaPipe ────────────────────────────────────
+    # ── 3. Validate: confirm this is a tennis serve video ────────────────────
+    try:
+        validate_tennis_video(tmp_path)
+    except ValueError as e:
+        os.unlink(tmp_path)
+        return jsonify({"error": str(e)}), 422
+    except Exception as e:
+        os.unlink(tmp_path)
+        return jsonify({"error": f"Video validation error: {str(e)}"}), 500
+
+    # ── 4. Extract features with MediaPipe ────────────────────────────────────
     try:
         features = extract_features(tmp_path)
     except ValueError as e:

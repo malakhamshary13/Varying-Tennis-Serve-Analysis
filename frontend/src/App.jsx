@@ -13,7 +13,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 
 gsap.registerPlugin(ScrollTrigger);
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = 'http://localhost:5000';
 
 const COURTS = [
   {
@@ -257,6 +257,75 @@ export default function App() {
     [handleFileSelect]
   );
 
+  /**
+   * Adapts the Flask backend response shape into what ResultsDashboard expects.
+   *
+   * Backend returns:
+   *   { status, result: { source_court, overall_score, feature_analysis, projections, user_features } }
+   *
+   * Dashboard expects:
+   *   { metadata, user_features, pro_baseline, comparison_to_pro, court_projection, feedback }
+   */
+  const adaptResponse = (data, courtId) => {
+    const r = data.result;
+    const fa = r.feature_analysis;
+
+    // Map feature_analysis keys → flat user_features & pro_baseline objects
+    // backend keys: min_knee, mean_knee, max_jump, mean_jump, max_vel, mean_vel, lat_disp
+    // dashboard keys: jump_height_cm, knee_flexion_angle_deg, knee_angular_velocity_deg_s,
+    //                 horizontal_displacement_m, ball_speed_kmh  (ball_speed not in backend → null)
+    const user_features = {
+      jump_height_cm:              fa.max_jump  ? +(fa.max_jump.user_value  * 100).toFixed(1) : null,
+      knee_flexion_angle_deg:      fa.min_knee  ? +(fa.min_knee.user_value).toFixed(1)         : null,
+      knee_angular_velocity_deg_s: fa.max_vel   ? +(fa.max_vel.user_value).toFixed(1)          : null,
+      horizontal_displacement_m:   fa.lat_disp  ? +(fa.lat_disp.user_value).toFixed(3)         : null,
+      ball_speed_kmh:              null,  // not tracked by extractor
+    };
+
+    const pro_baseline = {
+      jump_height_cm:              fa.max_jump  ? +(fa.max_jump.pro_mean  * 100).toFixed(1) : null,
+      knee_flexion_angle_deg:      fa.min_knee  ? +(fa.min_knee.pro_mean).toFixed(1)         : null,
+      knee_angular_velocity_deg_s: fa.max_vel   ? +(fa.max_vel.pro_mean).toFixed(1)          : null,
+      horizontal_displacement_m:   fa.lat_disp  ? +(fa.lat_disp.pro_mean).toFixed(3)         : null,
+      ball_speed_kmh:              null,
+    };
+
+    // % deviation from pro mean (signed)
+    const comparison_to_pro = {
+      jump_height_cm:              fa.max_jump  ? fa.max_jump.pct_deviation  : null,
+      knee_flexion_angle_deg:      fa.min_knee  ? fa.min_knee.pct_deviation  : null,
+      knee_angular_velocity_deg_s: fa.max_vel   ? fa.max_vel.pct_deviation   : null,
+      horizontal_displacement_m:   fa.lat_disp  ? fa.lat_disp.pct_deviation  : null,
+      ball_speed_kmh:              null,
+    };
+
+    // court_projection: flatten projections to { clay: [...], grass: [...], hard: [...] }
+    const court_projection = r.projections || {};
+
+    // feedback: collect coaching tips from feature_analysis
+    const feedback = Object.entries(fa).map(([key, val]) => ({
+      feature: key,
+      label:   val.label,
+      band:    val.band,
+      tip:     val.coaching_tip,
+      score:   val.performance_score,
+      z_score: val.z_score,
+    }));
+
+    return {
+      metadata: {
+        court_type:       r.source_court,
+        overall_score:    r.overall_score,
+        reference_player: 'Elite Pro Baseline',
+      },
+      user_features,
+      pro_baseline,
+      comparison_to_pro,
+      court_projection,
+      feedback,
+    };
+  };
+
   const handleAnalyze = async () => {
     if (!videoFile) return;
     setLoading(true);
@@ -265,15 +334,15 @@ export default function App() {
     try {
       const formData = new FormData();
       formData.append('video', videoFile);
-      formData.append('court_type', court);
+      formData.append('court', court);          // backend field name is 'court'
       const { data } = await axios.post(`${API_BASE}/analyze`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 120000,
       });
-      setResults(data);
+      setResults(adaptResponse(data, court));   // transform before storing
     } catch (err) {
       const msg =
-        err.response?.data?.detail ||
+        err.response?.data?.error ||            // Flask returns { error: '...' }
         err.message ||
         'Analysis failed. Please try again.';
       setError(msg);
@@ -679,7 +748,7 @@ export default function App() {
               <ul className="footer-tech-list" role="list">
                 {[
                   { icon: '⚛️', name: 'React',         sub: 'UI framework'         },
-                  { icon: '🐍', name: 'FastAPI',        sub: 'Backend API'          },
+                  { icon: '🐍', name: 'Flask',        sub: 'Backend API'          },
                   { icon: '🦴', name: 'MediaPipe',      sub: 'Pose estimation'      },
                   { icon: '🎞️', name: 'Framer Motion & GSAP',  sub: 'Animations'           },
                   { icon: '📈', name: 'Recharts',       sub: 'Data visualisation'   },
