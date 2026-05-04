@@ -9,22 +9,25 @@ import {
 } from 'recharts';
 
 const SHORT_LABELS = {
-  jump_height_cm: 'Jump',
-  knee_flexion_angle_deg: 'Knee Flex',
+  jump_height_cm:              'Jump',
+  knee_flexion_angle_deg:      'Knee Flex',
   knee_angular_velocity_deg_s: 'Angular Vel',
-  horizontal_displacement_m: 'Displacement',
-  ball_speed_kmh: 'Ball Speed',
+  horizontal_displacement_m:   'Displacement',
+  ball_speed_kmh:              'Ball Speed',
+};
+
+const MAXES = {
+  jump_height_cm:              60,
+  knee_flexion_angle_deg:      180,
+  knee_angular_velocity_deg_s: 800,
+  horizontal_displacement_m:   1.5,
+  ball_speed_kmh:              250,
 };
 
 function normalize(value, key) {
-  const MAXES = {
-    jump_height_cm: 60,
-    knee_flexion_angle_deg: 60,
-    knee_angular_velocity_deg_s: 800,
-    horizontal_displacement_m: 0.6,
-    ball_speed_kmh: 250,
-  };
-  return Math.round((value / (MAXES[key] || value * 1.5)) * 100);
+  if (value == null || value === 0) return 0;
+  const max = MAXES[key] || value * 1.5;
+  return Math.min(100, Math.round((value / max) * 100));
 }
 
 const CustomTooltip = ({ active, payload }) => {
@@ -49,7 +52,12 @@ const CustomTooltip = ({ active, payload }) => {
 };
 
 export default function ComparisonRadar({ userFeatures, proBaseline, metrics }) {
-  const data = metrics.map((m) => ({
+  // Filter out metrics where both user and pro values are null (e.g. ball_speed_kmh)
+  const validMetrics = metrics.filter(
+    (m) => userFeatures[m.key] != null || proBaseline[m.key] != null
+  );
+
+  const data = validMetrics.map((m) => ({
     subject: SHORT_LABELS[m.key] || m.key,
     You: normalize(userFeatures[m.key], m.key),
     Pro: normalize(proBaseline[m.key], m.key),

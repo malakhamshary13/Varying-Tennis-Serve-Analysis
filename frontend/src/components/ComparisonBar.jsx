@@ -11,11 +11,11 @@ import {
 } from 'recharts';
 
 const SHORT_LABELS = {
-  jump_height_cm: 'Jump',
-  knee_flexion_angle_deg: 'Knee°',
+  jump_height_cm:              'Jump',
+  knee_flexion_angle_deg:      'Knee°',
   knee_angular_velocity_deg_s: 'Ang.Vel',
-  horizontal_displacement_m: 'H.Disp',
-  ball_speed_kmh: 'Speed',
+  horizontal_displacement_m:   'H.Disp',
+  ball_speed_kmh:              'Speed',
 };
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -41,11 +41,16 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function ComparisonBar({ userFeatures, proBaseline, comparison, metrics }) {
-  const data = metrics.map((m) => ({
-    name: SHORT_LABELS[m.key] || m.key,
-    You: userFeatures[m.key],
-    Pro: proBaseline[m.key],
-    delta: comparison[m.key],
+  // Skip metrics where both user and pro values are null (e.g. ball_speed_kmh)
+  const validMetrics = metrics.filter(
+    (m) => userFeatures[m.key] != null || proBaseline[m.key] != null
+  );
+
+  const data = validMetrics.map((m) => ({
+    name:  SHORT_LABELS[m.key] || m.key,
+    You:   userFeatures[m.key]  ?? 0,
+    Pro:   proBaseline[m.key]   ?? 0,
+    delta: comparison[m.key]    ?? 0,
   }));
 
   return (
@@ -63,12 +68,8 @@ export default function ComparisonBar({ userFeatures, proBaseline, comparison, m
           <Legend wrapperStyle={{ paddingTop: 12, fontSize: 12, color: '#8b95a1' }} />
           <Bar dataKey="Pro" fill="#ff4d6d" fillOpacity={0.85} radius={[4, 4, 0, 0]} name="Pro Baseline" />
           <Bar dataKey="You" fill="#d4f56a" radius={[4, 4, 0, 0]} name="You">
-            {data.map((entry, i) => (
-              <Cell
-                key={`cell-you-${i}`}
-                fill='#d4f56a'
-                fillOpacity={0.85}
-              />
+            {data.map((_, i) => (
+              <Cell key={`cell-you-${i}`} fill="#d4f56a" fillOpacity={0.85} />
             ))}
           </Bar>
         </BarChart>

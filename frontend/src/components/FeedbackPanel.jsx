@@ -1,3 +1,20 @@
+// Map performance band → colour token
+const BAND_COLOR = {
+  elite:       '#d4f56a',   // accent green
+  proficient:  '#a8d94a',   // slightly muted green
+  developing:  '#f5c842',   // amber
+  needs_work:  '#ff8c42',   // orange
+  critical:    '#ff4d6d',   // red
+};
+
+const BAND_ICON = {
+  elite:      '✅',
+  proficient: '🟢',
+  developing: '🟡',
+  needs_work: '🟠',
+  critical:   '🔴',
+};
+
 export default function FeedbackPanel({ feedback }) {
   if (!feedback || feedback.length === 0) {
     return (
@@ -7,37 +24,24 @@ export default function FeedbackPanel({ feedback }) {
     );
   }
 
-  const coloredFeedback = [
-  {
-    text: "Excellent jump height! Your vertical leap is already at a professional level.",
-    color: "#d4f56a" // Green (your color)
-  },
-  {
-    text: "Consider adding more arm swing momentum during the takeoff phase.",
-    color: "#ff4d6d" // Red (area to improve)
-  },
-  {
-    text: "Knee flexion angle shows good control, but aim for a slightly deeper squat.",
-    color: "#ff4d6d"
-  },
-  {
-    text: "Your landing impact is well-distributed across both feet, which reduces injury risk.",
-    color: "#d4f56a"
-  },
-  {
-    text: "Work on hip mobility to increase the range of motion during the loading phase.",
-    color: "#ff4d6d"
-  }
-];
-
   return (
     <div className="feedback-section">
       <ul className="feedback-list" aria-label="Coach recommendations">
-        {feedback.map((item, i) => (
-          <li key={i} className="feedback-item" style={{ color: coloredFeedback[i].color }}>
-            {coloredFeedback[i].text}
-          </li>
-        ))}
+        {feedback.map((item, i) => {
+          const color = BAND_COLOR[item.band] ?? '#aab8cc';
+          const icon  = BAND_ICON[item.band]  ?? '⚪';
+          return (
+            <li key={i} className="feedback-item" style={{ color }}>
+              <span className="feedback-icon" aria-hidden="true">{icon}</span>
+              <span>
+                <strong style={{ display: 'block', marginBottom: '0.2rem' }}>
+                  {item.label}
+                </strong>
+                {item.tip}
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
