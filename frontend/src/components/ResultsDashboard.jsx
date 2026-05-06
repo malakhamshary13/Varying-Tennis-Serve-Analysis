@@ -25,7 +25,6 @@ const METRICS = [
   { key: 'knee_flexion_angle_deg',      label: 'Min Knee Flexion',  unit: '°'    },
   { key: 'knee_angular_velocity_deg_s', label: 'Peak Angular Vel.', unit: '°/s'  },
   { key: 'horizontal_displacement_m',   label: 'Lateral Disp.',     unit: 'cm'   },
-  { key: 'ball_speed_kmh',              label: 'Ball Speed',         unit: 'km/h' },
 ];
 
 function scoreColor(s) {
